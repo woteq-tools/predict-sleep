@@ -5,6 +5,8 @@ to sleep next, based on when you woke up.
 
 Tap one big button when you wake up, and the app tells you when to go to bed.
 
+**Live app:** <https://woteq-tools.github.io/predict-sleep/>
+
 ![Home screen](docs/screenshot-home.png)
 
 ## Goal

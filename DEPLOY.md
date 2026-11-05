@@ -4,6 +4,16 @@ The app is a static site: any web server that serves the folder over **HTTPS**
 works. PWAs and service workers require a secure context, so `http://` only
 works for `localhost`.
 
+## This deployment
+
+| | |
+| --- | --- |
+| Repository | <https://github.com/woteq-tools/predict-sleep> |
+| Live URL | <https://woteq-tools.github.io/predict-sleep/> |
+| Hosting | GitHub Pages, published by `.github/workflows/deploy.yml` |
+
+Every push to `main` is deployed automatically.
+
 ## GitHub Pages (recommended)
 
 The repository already contains a workflow at
