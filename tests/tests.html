@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sleep Predictor - unit checks</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 1.5rem;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: #0b1020;
+        color: #e8ecf8;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 1rem;
+      }
+      #summary {
+        font-weight: 600;
+        margin-bottom: 1rem;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      li {
+        padding: 0.4rem 0.6rem;
+        border-left: 3px solid transparent;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+      }
+      li.pass {
+        border-color: #2ecc71;
+      }
+      li.fail {
+        border-color: #e74c3c;
+        color: #ff9f9f;
+      }
+      code {
+        color: #9fb4ff;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sleep Predictor &mdash; unit checks</h1>
+    <div id="summary">Running&hellip;</div>
+    <ul id="results"></ul>
+
+    <script type="module">
+      import {
+        predictBedtime,
+        formatTime,
+        formatDurationMinutes,
+        formatCountdown,
+        dayOffset,
+        formatDayOffsetLabel,
+        MINUTE_MS,
+        HOUR_MS,
+      } from '../time.js';
+
+      const results = document.getElementById('results');
+      const summary = document.getElementById('summary');
+      let passed = 0;
+      let failed = 0;
+
+      const at = (year, month, day, hour, minute = 0) =>
+        new Date(year, month - 1, day, hour, minute, 0, 0).getTime();
+
+      function check(name, fn) {
+        try {
+          fn();
+          passed += 1;
+          const li = document.createElement('li');
+          li.className = 'pass';
+          li.textContent = `PASS  ${name}`;
+          results.append(li);
+        } catch (error) {
+          failed += 1;
+          const li = document.createElement('li');
+          li.className = 'fail';
+          li.textContent = `FAIL  ${name} - ${error.message}`;
+          results.append(li);
+        }
+      }
+
+      function assert(condition, message = 'assertion failed') {
+        if (!condition) throw new Error(message);
+      }
+
+      function assertEqual(actual, expected, message = 'values differ') {
+        if (actual !== expected) {
+          throw new Error(`${message}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+        }
+      }
+
+      check('predictBedtime adds the awake duration', () => {
+        const wake = at(2026, 7, 15, 7, 0);
+        assertEqual(predictBedtime(wake, 960) - wake, 16 * HOUR_MS);
+        assertEqual(new Date(predictBedtime(wake, 960)).getHours(), 23);
+      });
+
+      check('predictBedtime crosses midnight', () => {
+        const wake = at(2026, 7, 15, 9, 0);
+        const bedtime = predictBedtime(wake, 960);
+        assertEqual(new Date(bedtime).getDate(), 16);
+        assertEqual(new Date(bedtime).getHours(), 1);
+        assertEqual(dayOffset(wake, bedtime), 1);
+      });
+
+      check('formatTime follows the device locale clock', () => {
+        const ms = at(2026, 7, 15, 7, 0);
+        const expected = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(
+          new Date(ms),
+        );
+        assertEqual(formatTime(ms), expected);
+      });
+
+      check('formatDurationMinutes renders settings durations', () => {
+        assertEqual(formatDurationMinutes(960), '16h 00m');
+        assertEqual(formatDurationMinutes(945), '15h 45m');
+        assertEqual(formatDurationMinutes(1440), '24h 00m');
+      });
+
+      check('formatCountdown renders hours and minutes', () => {
+        assertEqual(formatCountdown(9 * HOUR_MS + 32 * MINUTE_MS).text, '9h 32m');
+        assertEqual(formatCountdown(32 * MINUTE_MS).text, '32m');
+        assertEqual(formatCountdown(0).text, 'now');
+      });
+
+      check('formatCountdown reports the overdue state', () => {
+        const result = formatCountdown(-20 * MINUTE_MS);
+        assert(result.overdue === true);
+        assertEqual(result.text, '20m');
+      });
+
+      check('dayOffset compares local calendar days', () => {
+        assertEqual(dayOffset(at(2026, 7, 15, 7, 0), at(2026, 7, 15, 23, 0)), 0);
+        assertEqual(dayOffset(at(2026, 7, 15, 23, 0), at(2026, 7, 16, 1, 0)), 1);
+        assertEqual(dayOffset(at(2026, 7, 16, 1, 0), at(2026, 7, 15, 23, 0)), -1);
+      });
+
+      check('formatDayOffsetLabel names the day', () => {
+        assertEqual(formatDayOffsetLabel(0), 'today');
+        assertEqual(formatDayOffsetLabel(1), 'tomorrow');
+        assertEqual(formatDayOffsetLabel(-1), 'yesterday');
+      });
+
+      summary.textContent = `${passed} passed, ${failed} failed`;
+      summary.style.color = failed === 0 ? '#2ecc71' : '#e74c3c';
+    </script>
+  </body>
+</html>
