@@ -1,0 +1,151 @@
+# Project Plan: Sleep Predictor PWA
+
+## Git workflow (used for every step)
+
+- `main` always holds working code.
+- Each phase gets its own branch. Each step is one commit.
+- When a phase is done, merge it into `main` with `--no-ff` and tag it.
+
+```bash
+# Start of a phase
+git switch main
+git switch -c phase-N-name
+
+# End of every step
+git add -A
+git commit -m "type: short description"
+
+# End of a phase
+git switch main
+git merge --no-ff phase-N-name -m "Merge phase N: name"
+git tag -a vN.0 -m "Phase N complete"
+```
+
+Commit prefixes: `chore:` (setup), `feat:` (feature), `fix:` (edge case), `docs:`, `test:`, `style:`.
+
+---
+
+## Phase 0: Project setup
+**Branch:** `phase-0-setup`
+
+| Step | Task | Commit |
+|---|---|---|
+| 0.1 | Create the folder and run `git init -b main`. Add `.gitignore` (`node_modules/`, `.DS_Store`). | `chore: initialize repository` |
+| 0.2 | Add `README.md` with the project goal and the spec. | `docs: add README with project spec` |
+| 0.3 | Create the file skeleton: `index.html`, `styles.css`, `app.js`, `time.js`, `storage.js`, `sw.js`, `manifest.json`, `icons/`. | `chore: add project file structure` |
+| 0.4 | (Optional) Create a GitHub repo and push: `git remote add origin <url> && git push -u origin main`. | n/a (merge and tag `v0.1`) |
+
+---
+
+## Phase 1: Core logic (no UI)
+**Branch:** `phase-1-core-logic`
+
+Keep this logic as pure functions so it is easy to test.
+
+| Step | Task | Commit |
+|---|---|---|
+| 1.1 | `storage.js`: safe `get`/`set` wrappers around localStorage (with try/catch and defaults). Store timestamps as **epoch milliseconds** and the duration in **minutes**. | `feat: add storage helpers` |
+| 1.2 | `time.js`: `predictBedtime(wakeMs, awakeMinutes)` returns `wakeMs + awakeMinutes * 60000`. | `feat: add bedtime prediction function` |
+| 1.3 | `time.js`: `formatTime(ms)` using `Intl.DateTimeFormat(undefined, {hour, minute})`, which respects the device locale's 12/24h format and local time zone. | `feat: add locale-aware time formatting` |
+| 1.4 | `time.js`: `formatCountdown(ms)` returns "9h 32m", plus an "overdue" state when negative. | `feat: add countdown formatter` |
+| 1.5 | Add a small `tests.html` or Node script covering the functions above, including a crossing-midnight case. | `test: add unit checks for time helpers` |
+
+---
+
+## Phase 2: Core UI
+**Branch:** `phase-2-ui`
+
+| Step | Task | Commit |
+|---|---|---|
+| 2.1 | `index.html`: semantic layout with a large "I woke up" button, plus areas for last wake time, predicted bedtime, and countdown. Add the viewport meta tag. | `feat: add home screen markup` |
+| 2.2 | `styles.css`: mobile-first minimal styling, large tap target, CSS variables for colors. | `style: add mobile-first base styles` |
+| 2.3 | Dark mode: `@media (prefers-color-scheme: dark)` overrides on the CSS variables, plus `<meta name="theme-color">`. | `style: add dark mode support` |
+| 2.4 | `app.js`: button handler saves the wake time and renders the prediction. Restore state on load. | `feat: record wake-up time and show prediction` |
+| 2.5 | Live countdown with a `setInterval` tick (every 1s or 30s). Pause when the tab is hidden and re-render on `visibilitychange`. | `feat: add live countdown` |
+
+---
+
+## Phase 3: Settings
+**Branch:** `phase-3-settings`
+
+| Step | Task | Commit |
+|---|---|---|
+| 3.1 | Settings screen (a simple view toggle or `#settings` hash route) with a navigation link. | `feat: add settings view and navigation` |
+| 3.2 | Stepper control: − / + buttons in 15-minute steps (min 1h, max 24h), displayed as "16h 00m". | `feat: add awake duration stepper` |
+| 3.3 | Persist the setting (default 960 min) and recompute the prediction when it changes. | `feat: persist awake duration and apply to predictions` |
+
+---
+
+## Phase 4: PWA (installable and offline)
+**Branch:** `phase-4-pwa`
+
+| Step | Task | Commit |
+|---|---|---|
+| 4.1 | `manifest.json`: name, `short_name`, `start_url`, `display: standalone`, theme and background colors. Link it in the HTML. | `feat: add web app manifest` |
+| 4.2 | Generate icons (192×192, 512×512, and a maskable 512×512) and reference them in the manifest. | `feat: add app icons` |
+| 4.3 | `sw.js`: precache the app shell on `install`, clean old caches on `activate`, and serve cache-first on `fetch`. Version the cache name (`sleep-v1`). | `feat: add service worker with offline caching` |
+| 4.4 | Register the service worker in `app.js`. Test via Chrome DevTools → Application → Offline. | `feat: register service worker` |
+| 4.5 | Run Lighthouse's PWA audit and fix any installability issues. | `fix: address Lighthouse PWA findings` |
+
+---
+
+## Phase 5: Edge cases
+**Branch:** `phase-5-edge-cases`
+
+| Step | Task | Commit |
+|---|---|---|
+| 5.1 | **Double tap:** if a wake-up was recorded recently (for example within the last 4 hours), ask "Replace the current wake-up time?". Also debounce rapid taps. | `fix: handle repeated wake-up taps` |
+| 5.2 | **Undo:** show a short-lived "Undo" toast after recording, restoring the previous value. | `feat: add undo for wake-up action` |
+| 5.3 | **Next-day bedtime:** if the predicted bedtime's date differs from today's, label it "11:00 PM (tomorrow)". | `fix: label bedtimes that fall on the next day` |
+| 5.4 | **Time zone changes:** timestamps are stored as absolute epoch values, so re-render on `visibilitychange` and on the `focus` event to pick up the new zone. Optionally save the zone at wake time and show a note if it differs. | `fix: handle time zone changes` |
+| 5.5 | **Overdue state:** when bedtime has passed, show "Bedtime was 20m ago" instead of a negative countdown. | `fix: handle bedtime already passed` |
+
+---
+
+## Phase 6: Optional features
+**Branch:** `phase-6-optional`
+
+| Step | Task | Commit |
+|---|---|---|
+| 6.1 | **History data layer:** store entries `{wakeMs, bedtimeMs, awakeMinutes}` in an array. Cap at around 60 entries. | `feat: store wake-up history` |
+| 6.2 | **History UI:** a list of past wake-ups and predicted bedtimes, with a "Clear history" button. | `feat: add history view` |
+| 6.3 | **Notification permission:** request it from a user gesture (a settings toggle), not on load. | `feat: add notification permission toggle` |
+| 6.4 | **Reminder:** schedule a notification at bedtime minus 30 minutes using `registration.showNotification` and a `setTimeout` while the app is open. | `feat: notify 30 minutes before bedtime` |
+
+**Limitation:** a PWA can't reliably fire a *scheduled* local notification when the app is fully closed. The Notification Triggers API was discontinued, and true background delivery needs a push server, which this project deliberately avoids. Step 6.4 works while the app is open or recently backgrounded. If you want guaranteed delivery later, that would need a small backend or a different approach.
+
+---
+
+## Phase 7: QA, docs, and release
+**Branch:** `phase-7-release`
+
+| Step | Task | Commit |
+|---|---|---|
+| 7.1 | Manual test checklist: first run, offline, settings persistence, midnight crossing, dark mode, time zone change. | `test: add manual QA checklist` |
+| 7.2 | Deploy over **HTTPS**, which PWAs require. GitHub Pages is the easiest option: `git push`, then enable Pages in repo settings. | `chore: configure deployment` |
+| 7.3 | Write Android install instructions in the README: open the URL in Chrome → ⋮ menu → **Install app** / **Add to Home screen**. | `docs: add Android install instructions` |
+| 7.4 | Final cleanup, version bump in the cache name, and release tag. | `chore: release v1.0.0` |
+
+```bash
+git switch main
+git merge --no-ff phase-7-release
+git tag -a v1.0.0 -m "First release"
+git push origin main --tags
+```
+
+---
+
+## Quick reference
+
+| Phase | Tag | Result |
+|---|---|---|
+| 0 | v0.1 | Repo and skeleton |
+| 1 | v0.2 | Tested time logic |
+| 2 | v0.3 | Working button, prediction, countdown, dark mode |
+| 3 | v0.4 | Configurable awake duration |
+| 4 | v0.5 | Installable and offline |
+| 5 | v0.6 | Edge cases handled |
+| 6 | v0.7 | History and notifications |
+| 7 | v1.0.0 | Release |
+
+Want me to start building? I can write the code one phase at a time, with the exact files and commit command for each step, beginning with Phase 0 and 1.

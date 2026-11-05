@@ -1,0 +1,28 @@
+Build an Android-friendly Progressive Web App (PWA) that predicts when the user should go to sleep next, based on when they woke up.
+
+## Core behavior
+- The home screen has a single large button labeled "I woke up".
+- When the user taps it, the app records the current time as the wake-up time.
+- The app then adds a configurable "awake duration" (default: 16 hours) to the wake-up time and displays the predicted bedtime.
+- Example: if the user taps the button at 7:00 AM, the app shows "Predicted bedtime: 11:00 PM".
+
+## Settings
+- A settings screen lets the user change the awake duration (default 16 hours, adjustable in 15-minute steps).
+- The setting is saved and applied to all future predictions.
+
+## Display
+- Show the last wake-up time, the predicted bedtime, and a live countdown ("Bedtime in 9h 32m").
+- Use the device's local time zone and the user's 12/24-hour format.
+
+## Optional features
+- Send a notification 30 minutes before the predicted bedtime.
+- Keep a simple history of past wake-up times and bedtimes.
+
+## Technical requirements
+- Installable PWA with a manifest and a service worker, working offline.
+- Store all data locally (localStorage or IndexedDB). No backend or account is required.
+- Mobile-first, clean, minimal UI with dark mode support.
+- Handle edge cases: tapping the button twice, a predicted time that falls on the next day, and time zone changes.
+
+## Output
+- Provide the complete code (HTML, CSS, JS, manifest.json, service worker) and short instructions for installing the app on Android.
