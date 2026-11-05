@@ -15,6 +15,7 @@ import {
   dayOffset,
   formatDayOffsetLabel,
   currentZone,
+  MINUTE_MS,
 } from './time.js';
 
 import {
@@ -32,6 +33,7 @@ import {
   clearHistory,
   getNotifyEnabled,
   setNotifyEnabled,
+  getNotifyLeadMinutes,
   setAwakeMinutes,
   DEFAULTS,
 } from './storage.js';
@@ -200,6 +202,78 @@ function updateCountdown(bedtimeMs) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Reminder scheduling
+ * ------------------------------------------------------------------ */
+
+/** setTimeout cannot wait longer than this, so long waits are chained. */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
+let reminderTimer = null;
+
+/**
+ * Show the bedtime reminder.
+ * @param {number} bedtimeMs
+ */
+async function showReminder(bedtimeMs) {
+  const title = 'Time to wind down';
+  const body = `Your predicted bedtime is ${formatTime(bedtimeMs)}.`;
+
+  const options = {
+    body,
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag: 'bedtime-reminder',
+  };
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.showNotification(title, options);
+        return;
+      }
+    }
+
+    new Notification(title, options);
+  } catch (error) {
+    console.warn('The reminder could not be shown:', error);
+  }
+}
+
+/**
+ * Schedule the reminder for 30 minutes before the predicted bedtime.
+ *
+ * A web app can only fire this while it is running: there is no reliable way
+ * to run a timer in a closed PWA, and scheduled notifications without a push
+ * server are not available.
+ */
+function scheduleReminder() {
+  window.clearTimeout(reminderTimer);
+  reminderTimer = null;
+
+  if (!getNotifyEnabled()) return;
+  if (state.wakeMs === null) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const bedtimeMs = predictBedtime(state.wakeMs, state.awakeMinutes);
+  const notifyAt = bedtimeMs - getNotifyLeadMinutes() * MINUTE_MS;
+  const delay = notifyAt - Date.now();
+
+  // The reminder moment has already passed.
+  if (delay <= 0) return;
+
+  if (delay > MAX_TIMEOUT_MS) {
+    reminderTimer = window.setTimeout(scheduleReminder, MAX_TIMEOUT_MS);
+    return;
+  }
+
+  reminderTimer = window.setTimeout(() => {
+    reminderTimer = null;
+    showReminder(bedtimeMs);
+  }, delay);
+}
+
+/* ------------------------------------------------------------------ *
  * Reminder notification
  * ------------------------------------------------------------------ */
 
@@ -329,6 +403,7 @@ function changeAwakeMinutes(deltaMinutes) {
   state.awakeMinutes = setAwakeMinutes(state.awakeMinutes + deltaMinutes);
   updateStepper();
   render();
+  scheduleReminder();
 }
 
 /**
@@ -456,6 +531,7 @@ function applyWakeUp(now) {
 
   render();
   startTimer();
+  scheduleReminder();
 
   showToast(`Wake-up saved at ${formatTime(now)}`, () => {    if (previousWakeMs === null) {
       state.wakeMs = null;
@@ -572,6 +648,7 @@ els.notifyToggle.addEventListener('change', async () => {
   if (!els.notifyToggle.checked) {
     setNotifyEnabled(false);
     els.notifyNote.hidden = true;
+    scheduleReminder();
     return;
   }
 
@@ -585,11 +662,13 @@ els.notifyToggle.addEventListener('change', async () => {
       permission === 'unsupported'
         ? 'This browser cannot show notifications.'
         : 'Notifications are blocked for this site. Allow them in your browser settings to get a reminder.';
+    scheduleReminder();
     return;
   }
 
   setNotifyEnabled(true);
   els.notifyNote.hidden = true;
+  scheduleReminder();
 });
 
 els.historyClear.addEventListener('click', async () => {  const clear = await askConfirm({
@@ -622,6 +701,7 @@ document.addEventListener('visibilitychange', () => {
   }
   render();
   startTimer();
+  scheduleReminder();
 });
 
 // The time zone can change while the app stays open, for example when the
@@ -635,5 +715,6 @@ updateStepper();
 renderNotifyToggle();
 render();
 startTimer();
+scheduleReminder();
 handleLaunchAction();
 registerServiceWorker();
