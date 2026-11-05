@@ -9,6 +9,7 @@
 import {
   predictBedtime,
   formatTime,
+  formatDateShort,
   formatCountdownLabel,
   formatDurationMinutes,
   dayOffset,
@@ -25,8 +26,10 @@ import {
   getSavedZone,
   setSavedZone,
   removeItem,
+  getHistory,
   addHistoryEntry,
   removeHistoryEntry,
+  clearHistory,
   setAwakeMinutes,
   DEFAULTS,
 } from './storage.js';
@@ -47,17 +50,24 @@ const els = {
   previewBedtime: document.getElementById('preview-bedtime'),
   previewHint: document.getElementById('preview-hint'),
   confirmDialog: document.getElementById('confirm-dialog'),
-  confirmTime: document.getElementById('confirm-time'),
+  confirmTitle: document.getElementById('confirm-title'),
+  confirmText: document.getElementById('confirm-text'),
+  confirmAccept: document.getElementById('confirm-accept'),
+  confirmCancel: document.getElementById('confirm-cancel'),
   toast: document.getElementById('toast'),
   toastMessage: document.getElementById('toast-message'),
   toastUndo: document.getElementById('toast-undo'),
   zoneNote: document.getElementById('zone-note'),
+  historyList: document.getElementById('history-list'),
+  historyEmpty: document.getElementById('history-empty'),
+  historyClear: document.getElementById('history-clear'),
 };
 
 /** The screens of the app and the element that holds them. */
 const VIEWS = {
   home: 'view-home',
   settings: 'view-settings',
+  history: 'view-history',
 };
 
 const state = {
@@ -109,6 +119,8 @@ function showView(name) {
     else link.removeAttribute('aria-current');
   }
 
+  renderHistory();
+
   window.scrollTo(0, 0);
 }
 
@@ -142,6 +154,7 @@ function render() {
 
   renderPreview();
   renderZoneNote();
+  renderHistory();
 
   if (wakeMs === null) {
     els.prediction.hidden = true;
@@ -180,6 +193,61 @@ function updateCountdown(bedtimeMs) {
   lastCountdownLabel = label;
   els.countdown.textContent = label;
   els.countdown.classList.toggle('is-overdue', overdue);
+}
+
+/* ------------------------------------------------------------------ *
+ * History
+ * ------------------------------------------------------------------ */
+
+/**
+ * A small helper to build an element.
+ * @param {string} tag
+ * @param {string} [className]
+ * @param {string} [text]
+ * @returns {HTMLElement}
+ */
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/**
+ * Draw the recorded wake-ups into the history list.
+ */
+function renderHistory() {
+  const entries = getHistory();
+
+  els.historyList.textContent = '';
+  els.historyEmpty.hidden = entries.length > 0;
+  els.historyClear.hidden = entries.length === 0;
+
+  for (const entry of entries) {
+    const item = el('li', 'history__item');
+
+    const head = el('div', 'history__head');
+    head.append(
+      el('span', 'history__date', formatDateShort(entry.wakeMs)),
+      el('span', 'history__duration', formatDurationMinutes(entry.awakeMinutes)),
+    );
+
+    // Show the date too when the bedtime is on another calendar day.
+    const nextDay = dayOffset(entry.wakeMs, entry.bedtimeMs) !== 0;
+    const bedtime = nextDay
+      ? `Bedtime ${formatDateShort(entry.bedtimeMs)} ${formatTime(entry.bedtimeMs)}`
+      : `Bedtime ${formatTime(entry.bedtimeMs)}`;
+
+    const detail = el('div', 'history__detail');
+    detail.append(
+      el('span', 'history__wake', `Woke up ${formatTime(entry.wakeMs)}`),
+      el('span', 'history__arrow', '→'),
+      el('span', 'history__bedtime', bedtime),
+    );
+
+    item.append(head, detail);
+    els.historyList.append(item);
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -243,6 +311,40 @@ function stopTimer() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Dialog
+ * ------------------------------------------------------------------ */
+
+/**
+ * Ask the user a yes/no question.
+ *
+ * @param {{title: string, text: string, acceptLabel?: string, cancelLabel?: string}} options
+ * @returns {Promise<boolean>} true when the user accepted
+ */
+function askConfirm({ title, text, acceptLabel = 'OK', cancelLabel = 'Cancel' }) {
+  // Very old browsers without <dialog> support.
+  if (typeof els.confirmDialog.showModal !== 'function') {
+    return Promise.resolve(window.confirm(text));
+  }
+
+  if (els.confirmDialog.open) return Promise.resolve(false);
+
+  els.confirmTitle.textContent = title;
+  els.confirmText.textContent = text;
+  els.confirmAccept.textContent = acceptLabel;
+  els.confirmCancel.textContent = cancelLabel;
+  els.confirmDialog.returnValue = 'cancel';
+
+  return new Promise((resolve) => {
+    els.confirmDialog.addEventListener(
+      'close',
+      () => resolve(els.confirmDialog.returnValue === 'accept'),
+      { once: true },
+    );
+    els.confirmDialog.showModal();
+  });
+}
+
+/* ------------------------------------------------------------------ *
  * Toast
  * ------------------------------------------------------------------ */
 
@@ -298,8 +400,7 @@ function applyWakeUp(now) {
   render();
   startTimer();
 
-  showToast(`Wake-up saved at ${formatTime(now)}`, () => {
-    if (previousWakeMs === null) {
+  showToast(`Wake-up saved at ${formatTime(now)}`, () => {    if (previousWakeMs === null) {
       state.wakeMs = null;
       clearLastWakeMs();
     } else {
@@ -319,20 +420,17 @@ function applyWakeUp(now) {
 /**
  * Ask whether an existing wake-up time should be replaced.
  * @param {number} now epoch milliseconds
+ * @returns {Promise<void>}
  */
-function confirmReplace(now) {
-  els.confirmTime.textContent = formatTime(state.wakeMs);
+async function confirmReplace(now) {
+  const replace = await askConfirm({
+    title: 'Replace your wake-up time?',
+    text: `You already recorded a wake-up at ${formatTime(state.wakeMs)}. Replace it with the current time?`,
+    acceptLabel: 'Replace',
+    cancelLabel: 'Keep it',
+  });
 
-  if (typeof els.confirmDialog.showModal !== 'function') {
-    // Very old browsers without <dialog> support.
-    if (window.confirm('Replace your wake-up time?')) applyWakeUp(now);
-    return;
-  }
-
-  if (els.confirmDialog.open) return;
-
-  els.confirmDialog.returnValue = 'cancel';
-  els.confirmDialog.showModal();
+  if (replace) applyWakeUp(now);
 }
 
 /**
@@ -411,6 +509,20 @@ els.toastUndo.addEventListener('click', () => {
   const undo = undoHandler;
   hideToast();
   if (undo) undo();
+});
+
+els.historyClear.addEventListener('click', async () => {
+  const clear = await askConfirm({
+    title: 'Clear the history?',
+    text: 'This removes every recorded wake-up and bedtime. It cannot be undone.',
+    acceptLabel: 'Clear',
+    cancelLabel: 'Keep it',
+  });
+
+  if (!clear) return;
+
+  clearHistory();
+  renderHistory();
 });
 
 els.durationDecrease.addEventListener('click', () => changeAwakeMinutes(-DEFAULTS.stepMinutes));
