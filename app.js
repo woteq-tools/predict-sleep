@@ -9,7 +9,7 @@
 import {
   predictBedtime,
   formatTime,
-  formatCountdown,
+  formatCountdownLabel,
   formatDurationMinutes,
   dayOffset,
   formatDayOffsetLabel,
@@ -171,8 +171,7 @@ function render() {
  */
 function updateCountdown(bedtimeMs) {
   const remaining = bedtimeMs - Date.now();
-  const { overdue, text } = formatCountdown(remaining);
-  const label = overdue ? `Bedtime was ${text} ago` : `Bedtime in ${text}`;
+  const { label, overdue } = formatCountdownLabel(remaining);
 
   if (label === lastCountdownLabel) return;
 

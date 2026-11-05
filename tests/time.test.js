@@ -7,6 +7,7 @@ import {
   formatDateTime,
   formatDurationMinutes,
   formatCountdown,
+  formatCountdownLabel,
   dayOffset,
   isSameLocalDay,
   formatDayOffsetLabel,
@@ -128,6 +129,25 @@ test('formatCountdown handles the exact bedtime moment', () => {
 
 test('formatCountdown handles invalid input', () => {
   assert.deepEqual(formatCountdown(NaN), { overdue: false, text: '', totalMinutes: 0 });
+});
+
+test('formatCountdownLabel reads like a sentence', () => {
+  assert.equal(formatCountdownLabel(9 * HOUR_MS + 32 * MINUTE_MS).label, 'Bedtime in 9h 32m');
+  assert.equal(formatCountdownLabel(32 * MINUTE_MS).label, 'Bedtime in 32m');
+  assert.equal(formatCountdownLabel(0).label, 'Bedtime is now');
+  assert.equal(formatCountdownLabel(30 * 1000).label, 'Bedtime in less than a minute');
+});
+
+test('formatCountdownLabel handles the overdue state', () => {
+  const overdue = formatCountdownLabel(-20 * MINUTE_MS);
+
+  assert.equal(overdue.label, 'Bedtime was 20m ago');
+  assert.equal(overdue.overdue, true);
+
+  const justPassed = formatCountdownLabel(-30 * 1000);
+
+  assert.equal(justPassed.label, 'Bedtime just passed');
+  assert.equal(justPassed.overdue, true);
 });
 
 test('dayOffset compares local calendar days', () => {
