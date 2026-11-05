@@ -30,6 +30,8 @@ import {
   addHistoryEntry,
   removeHistoryEntry,
   clearHistory,
+  getNotifyEnabled,
+  setNotifyEnabled,
   setAwakeMinutes,
   DEFAULTS,
 } from './storage.js';
@@ -61,6 +63,8 @@ const els = {
   historyList: document.getElementById('history-list'),
   historyEmpty: document.getElementById('history-empty'),
   historyClear: document.getElementById('history-clear'),
+  notifyToggle: document.getElementById('notify-toggle'),
+  notifyNote: document.getElementById('notify-note'),
 };
 
 /** The screens of the app and the element that holds them. */
@@ -193,6 +197,59 @@ function updateCountdown(bedtimeMs) {
   lastCountdownLabel = label;
   els.countdown.textContent = label;
   els.countdown.classList.toggle('is-overdue', overdue);
+}
+
+/* ------------------------------------------------------------------ *
+ * Reminder notification
+ * ------------------------------------------------------------------ */
+
+/**
+ * Ask the browser for permission to show notifications.
+ *
+ * This must happen inside a user gesture, which is why it is only called when
+ * the user flips the switch in the settings.
+ *
+ * @returns {Promise<string>} the permission state
+ */
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+    return Notification.permission;
+  }
+
+  try {
+    return await Notification.requestPermission();
+  } catch {
+    return 'denied';
+  }
+}
+
+/**
+ * Show the current state of the reminder switch.
+ */
+function renderNotifyToggle() {
+  const enabled = getNotifyEnabled();
+
+  els.notifyToggle.checked = enabled;
+  els.notifyNote.hidden = true;
+
+  if (!enabled) return;
+
+  if (!('Notification' in window)) {
+    els.notifyToggle.checked = false;
+    setNotifyEnabled(false);
+    els.notifyNote.hidden = false;
+    els.notifyNote.textContent = 'This browser cannot show notifications.';
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    els.notifyToggle.checked = false;
+    setNotifyEnabled(false);
+    els.notifyNote.hidden = false;
+    els.notifyNote.textContent =
+      'Notifications are blocked for this site. Allow them in your browser settings to get a reminder.';
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -511,8 +568,31 @@ els.toastUndo.addEventListener('click', () => {
   if (undo) undo();
 });
 
-els.historyClear.addEventListener('click', async () => {
-  const clear = await askConfirm({
+els.notifyToggle.addEventListener('change', async () => {
+  if (!els.notifyToggle.checked) {
+    setNotifyEnabled(false);
+    els.notifyNote.hidden = true;
+    return;
+  }
+
+  const permission = await requestNotificationPermission();
+
+  if (permission !== 'granted') {
+    els.notifyToggle.checked = false;
+    setNotifyEnabled(false);
+    els.notifyNote.hidden = false;
+    els.notifyNote.textContent =
+      permission === 'unsupported'
+        ? 'This browser cannot show notifications.'
+        : 'Notifications are blocked for this site. Allow them in your browser settings to get a reminder.';
+    return;
+  }
+
+  setNotifyEnabled(true);
+  els.notifyNote.hidden = true;
+});
+
+els.historyClear.addEventListener('click', async () => {  const clear = await askConfirm({
     title: 'Clear the history?',
     text: 'This removes every recorded wake-up and bedtime. It cannot be undone.',
     acceptLabel: 'Clear',
@@ -552,6 +632,7 @@ window.addEventListener('focus', () => {
 
 showView(routeFromHash());
 updateStepper();
+renderNotifyToggle();
 render();
 startTimer();
 handleLaunchAction();
