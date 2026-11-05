@@ -30,6 +30,13 @@ const state = {
   awakeMinutes: getAwakeMinutes(),
 };
 
+let timerId = null;
+let lastCountdownLabel = '';
+
+/* ------------------------------------------------------------------ *
+ * Rendering
+ * ------------------------------------------------------------------ */
+
 /**
  * Draw the current state into the DOM.
  */
@@ -51,10 +58,48 @@ function render() {
   els.awakeDuration.textContent = formatDurationMinutes(awakeMinutes);
   els.bedtimeTime.textContent = formatTime(bedtimeMs);
 
-  const { overdue, text } = formatCountdown(bedtimeMs - Date.now());
-  els.countdown.textContent = overdue ? `Bedtime was ${text} ago` : `Bedtime in ${text}`;
+  updateCountdown(bedtimeMs);
+}
+
+/**
+ * Update the live countdown. The DOM is only touched when the text changes,
+ * so a one second tick stays cheap.
+ *
+ * @param {number} bedtimeMs
+ */
+function updateCountdown(bedtimeMs) {
+  const remaining = bedtimeMs - Date.now();
+  const { overdue, text } = formatCountdown(remaining);
+  const label = overdue ? `Bedtime was ${text} ago` : `Bedtime in ${text}`;
+
+  if (label === lastCountdownLabel) return;
+
+  lastCountdownLabel = label;
+  els.countdown.textContent = label;
   els.countdown.classList.toggle('is-overdue', overdue);
 }
+
+/* ------------------------------------------------------------------ *
+ * Countdown timer
+ * ------------------------------------------------------------------ */
+
+function startTimer() {
+  if (timerId !== null) return;
+  timerId = window.setInterval(() => {
+    if (state.wakeMs === null) return;
+    updateCountdown(predictBedtime(state.wakeMs, state.awakeMinutes));
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerId === null) return;
+  window.clearInterval(timerId);
+  timerId = null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Actions
+ * ------------------------------------------------------------------ */
 
 /**
  * Record the current moment as the wake-up time.
@@ -66,8 +111,25 @@ function recordWakeUp() {
   setLastWakeMs(now);
 
   render();
+  startTimer();
 }
+
+/* ------------------------------------------------------------------ *
+ * Bootstrap
+ * ------------------------------------------------------------------ */
 
 els.wakeButton.addEventListener('click', recordWakeUp);
 
+// Pause the timer while the app is in the background and refresh the numbers
+// when it comes back - the time zone or the clock may have changed.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopTimer();
+    return;
+  }
+  render();
+  startTimer();
+});
+
 render();
+startTimer();
