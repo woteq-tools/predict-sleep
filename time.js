@@ -27,3 +27,44 @@ export function predictBedtime(wakeMs, awakeMinutes) {
   if (!Number.isFinite(wake) || !Number.isFinite(minutes)) return NaN;
   return wake + minutes * MINUTE_MS;
 }
+
+/**
+ * Format an instant as a local clock time ("7:00 AM", "19:00").
+ *
+ * `Intl.DateTimeFormat` with an `undefined` locale follows the device locale,
+ * which is what decides the 12/24 hour preference.
+ *
+ * @param {number} ms epoch milliseconds
+ * @returns {string}
+ */
+export function formatTime(ms) {
+  if (!Number.isFinite(ms)) return '';
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(
+    new Date(ms),
+  );
+}
+
+/**
+ * Format an instant as a short local date ("Nov 5").
+ * @param {number} ms epoch milliseconds
+ * @returns {string}
+ */
+export function formatDateShort(ms) {
+  if (!Number.isFinite(ms)) return '';
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(ms));
+}
+
+/**
+ * Format an instant as a local date and time ("Nov 5, 7:00 AM").
+ * @param {number} ms epoch milliseconds
+ * @returns {string}
+ */
+export function formatDateTime(ms) {
+  if (!Number.isFinite(ms)) return '';
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(ms));
+}
