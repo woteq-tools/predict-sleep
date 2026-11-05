@@ -13,7 +13,7 @@ import {
   formatDurationMinutes,
 } from './time.js';
 
-import { getAwakeMinutes, getLastWakeMs, setLastWakeMs } from './storage.js';
+import { getAwakeMinutes, getLastWakeMs, setLastWakeMs, clampAwakeMinutes, DEFAULTS } from './storage.js';
 
 const els = {
   wakeButton: document.getElementById('wake-button'),
@@ -23,6 +23,9 @@ const els = {
   wakeTime: document.getElementById('wake-time'),
   awakeDuration: document.getElementById('awake-duration'),
   emptyState: document.getElementById('empty-state'),
+  durationValue: document.getElementById('duration-value'),
+  durationDecrease: document.getElementById('duration-decrease'),
+  durationIncrease: document.getElementById('duration-increase'),
 };
 
 /** The screens of the app and the element that holds them. */
@@ -118,6 +121,29 @@ function updateCountdown(bedtimeMs) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Awake duration stepper
+ * ------------------------------------------------------------------ */
+
+/**
+ * Show the current awake duration and grey out the buttons that would leave
+ * the allowed range.
+ */
+function updateStepper() {
+  els.durationValue.textContent = formatDurationMinutes(state.awakeMinutes);
+  els.durationDecrease.disabled = state.awakeMinutes <= DEFAULTS.minAwakeMinutes;
+  els.durationIncrease.disabled = state.awakeMinutes >= DEFAULTS.maxAwakeMinutes;
+}
+
+/**
+ * Move the awake duration by one step.
+ * @param {number} deltaMinutes
+ */
+function changeAwakeMinutes(deltaMinutes) {
+  state.awakeMinutes = clampAwakeMinutes(state.awakeMinutes + deltaMinutes);
+  updateStepper();
+}
+
+/* ------------------------------------------------------------------ *
  * Countdown timer
  * ------------------------------------------------------------------ */
 
@@ -158,6 +184,9 @@ function recordWakeUp() {
 
 els.wakeButton.addEventListener('click', recordWakeUp);
 
+els.durationDecrease.addEventListener('click', () => changeAwakeMinutes(-DEFAULTS.stepMinutes));
+els.durationIncrease.addEventListener('click', () => changeAwakeMinutes(DEFAULTS.stepMinutes));
+
 window.addEventListener('hashchange', () => showView(routeFromHash()));
 
 // Pause the timer while the app is in the background and refresh the numbers
@@ -172,5 +201,6 @@ document.addEventListener('visibilitychange', () => {
 });
 
 showView(routeFromHash());
+updateStepper();
 render();
 startTimer();
