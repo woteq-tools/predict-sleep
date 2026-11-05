@@ -1,0 +1,11 @@
+{
+  "name": "sleep-predictor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Installable PWA that predicts when you should go to sleep next, based on when you woke up.",
+  "scripts": {
+    "test": "node --test",
+    "serve": "python3 -m http.server 8000"
+  }
+}
