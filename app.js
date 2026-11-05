@@ -67,6 +67,7 @@ const els = {
   historyClear: document.getElementById('history-clear'),
   notifyToggle: document.getElementById('notify-toggle'),
   notifyNote: document.getElementById('notify-note'),
+  installButton: document.getElementById('install-button'),
 };
 
 /** The screens of the app and the element that holds them. */
@@ -608,6 +609,40 @@ function handleLaunchAction() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Install prompt
+ * ------------------------------------------------------------------ */
+
+let installPrompt = null;
+
+/**
+ * Show an "Install app" button when the browser reports that the app can be
+ * installed. Chrome hides its own banner after the first visit, so this keeps
+ * the install reachable.
+ */
+function setupInstallPrompt() {
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    els.installButton.hidden = false;
+  });
+
+  els.installButton.addEventListener('click', async () => {
+    if (!installPrompt) return;
+
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+
+    installPrompt = null;
+    els.installButton.hidden = true;
+  });
+
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    els.installButton.hidden = true;
+  });
+}
+
+/* ------------------------------------------------------------------ *
  * Service worker
  * ------------------------------------------------------------------ */
 /**
@@ -717,4 +752,5 @@ render();
 startTimer();
 scheduleReminder();
 handleLaunchAction();
+setupInstallPrompt();
 registerServiceWorker();

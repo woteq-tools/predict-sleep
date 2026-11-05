@@ -555,6 +555,26 @@ body {
   color: var(--fg-muted);
 }
 
+.install-button {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-md);
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.install-button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ------------------------------------------------------------------ *
  * Prediction card
  * ------------------------------------------------------------------ */
