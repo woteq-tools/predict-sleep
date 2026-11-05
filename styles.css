@@ -251,6 +251,73 @@ body {
 }
 
 /* ------------------------------------------------------------------ *
+ * Dialog
+ * ------------------------------------------------------------------ */
+
+.dialog {
+  width: min(22rem, calc(100vw - 2rem));
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 20px 60px rgba(6, 10, 24, 0.35);
+}
+
+.dialog::backdrop {
+  background: rgba(6, 10, 24, 0.55);
+}
+
+.dialog__form {
+  margin: 0;
+}
+
+.dialog__title {
+  margin: 0 0 var(--space-sm);
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+.dialog__text {
+  margin: 0 0 var(--space-lg);
+  color: var(--fg-muted);
+}
+
+.dialog__text strong {
+  color: var(--fg);
+}
+
+.dialog__actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.button {
+  flex: 1;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ *
  * Wake up button
  * ------------------------------------------------------------------ */
 

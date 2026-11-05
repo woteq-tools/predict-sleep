@@ -37,6 +37,8 @@ const els = {
   settingsPreview: document.getElementById('settings-preview'),
   previewBedtime: document.getElementById('preview-bedtime'),
   previewHint: document.getElementById('preview-hint'),
+  confirmDialog: document.getElementById('confirm-dialog'),
+  confirmTime: document.getElementById('confirm-time'),
 };
 
 /** The screens of the app and the element that holds them. */
@@ -52,6 +54,13 @@ const state = {
 
 let timerId = null;
 let lastCountdownLabel = '';
+let lastTapAt = 0;
+
+/** A wake-up older than this is treated as a new day, not a double tap. */
+const RECENT_TAP_WINDOW_MS = 4 * 60 * 60 * 1000;
+
+/** Taps that arrive faster than this are ignored. */
+const TAP_DEBOUNCE_MS = 700;
 
 /* ------------------------------------------------------------------ *
  * Routing
@@ -198,11 +207,10 @@ function stopTimer() {
  * ------------------------------------------------------------------ */
 
 /**
- * Record the current moment as the wake-up time.
+ * Store a wake-up time as the current one.
+ * @param {number} now epoch milliseconds
  */
-function recordWakeUp() {
-  const now = Date.now();
-
+function applyWakeUp(now) {
   state.wakeMs = now;
   setLastWakeMs(now);
 
@@ -210,9 +218,47 @@ function recordWakeUp() {
   startTimer();
 }
 
-/* ------------------------------------------------------------------ *
- * Launch actions
- * ------------------------------------------------------------------ */
+/**
+ * Ask whether an existing wake-up time should be replaced.
+ * @param {number} now epoch milliseconds
+ */
+function confirmReplace(now) {
+  els.confirmTime.textContent = formatTime(state.wakeMs);
+
+  if (typeof els.confirmDialog.showModal !== 'function') {
+    // Very old browsers without <dialog> support.
+    if (window.confirm('Replace your wake-up time?')) applyWakeUp(now);
+    return;
+  }
+
+  if (els.confirmDialog.open) return;
+
+  els.confirmDialog.returnValue = 'cancel';
+  els.confirmDialog.showModal();
+}
+
+/**
+ * Handle a tap on the "I woke up" button.
+ *
+ * A wake-up that was recorded a short while ago is probably a double tap, so
+ * the user gets asked before it is replaced. Very fast taps are ignored.
+ */
+function requestWakeUp() {
+  const now = Date.now();
+
+  if (now - lastTapAt < TAP_DEBOUNCE_MS) return;
+  lastTapAt = now;
+
+  const previousWakeMs = state.wakeMs;
+  const isRecent = previousWakeMs !== null && now - previousWakeMs < RECENT_TAP_WINDOW_MS;
+
+  if (isRecent) {
+    confirmReplace(now);
+    return;
+  }
+
+  applyWakeUp(now);
+}
 
 /**
  * Handle the "I woke up" shortcut of the installed app.
@@ -224,7 +270,7 @@ function handleLaunchAction() {
   const action = new URLSearchParams(window.location.search).get('action');
   if (action !== 'wake') return;
 
-  recordWakeUp();
+  requestWakeUp();
 
   // Drop the action from the URL so a reload does not record it twice.
   const url = new URL(window.location.href);
@@ -257,7 +303,11 @@ function registerServiceWorker() {
  * Bootstrap
  * ------------------------------------------------------------------ */
 
-els.wakeButton.addEventListener('click', recordWakeUp);
+els.wakeButton.addEventListener('click', requestWakeUp);
+
+els.confirmDialog.addEventListener('close', () => {
+  if (els.confirmDialog.returnValue === 'replace') applyWakeUp(Date.now());
+});
 
 els.durationDecrease.addEventListener('click', () => changeAwakeMinutes(-DEFAULTS.stepMinutes));
 els.durationIncrease.addEventListener('click', () => changeAwakeMinutes(DEFAULTS.stepMinutes));

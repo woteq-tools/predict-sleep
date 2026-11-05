@@ -96,6 +96,20 @@
       </main>
     </div>
 
+    <dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">
+      <form method="dialog" class="dialog__form">
+        <h2 class="dialog__title" id="confirm-title">Replace your wake-up time?</h2>
+        <p class="dialog__text">
+          You already recorded a wake-up at <strong id="confirm-time">&mdash;</strong>. Replace it with
+          the current time?
+        </p>
+        <div class="dialog__actions">
+          <button class="button" type="submit" value="cancel">Keep it</button>
+          <button class="button button--primary" type="submit" value="replace">Replace</button>
+        </div>
+      </form>
+    </dialog>
+
     <script type="module" src="./app.js"></script>
   </body>
 </html>
