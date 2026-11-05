@@ -28,6 +28,9 @@ jobs:
 
       - name: Set up Pages
         uses: actions/configure-pages@v5
+        with:
+          # Turn Pages on for the repository if it is not on yet.
+          enablement: true
 
       # Only the files the app actually needs are published.
       - name: Stage the app
