@@ -117,6 +117,28 @@ export function formatCountdown(ms) {
 }
 
 /**
+ * A ready to use sentence for the countdown, for example "Bedtime in 9h 32m".
+ *
+ * @param {number} ms milliseconds until the target (negative when overdue)
+ * @returns {{label: string, overdue: boolean}}
+ */
+export function formatCountdownLabel(ms) {
+  const value = Number(ms);
+  const { overdue, text, totalMinutes } = formatCountdown(value);
+
+  if (totalMinutes > 0) {
+    return { label: overdue ? `Bedtime was ${text} ago` : `Bedtime in ${text}`, overdue };
+  }
+
+  if (value === 0) return { label: 'Bedtime is now', overdue: false };
+
+  return {
+    label: overdue ? 'Bedtime just passed' : 'Bedtime in less than a minute',
+    overdue,
+  };
+}
+
+/**
  * The local calendar day index of an instant.
  *
  * Using the local calendar parts (instead of `Math.floor(ms / DAY_MS)`) keeps

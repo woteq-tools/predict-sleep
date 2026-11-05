@@ -9,16 +9,22 @@
 import {
   predictBedtime,
   formatTime,
-  formatCountdown,
+  formatCountdownLabel,
   formatDurationMinutes,
   dayOffset,
   formatDayOffsetLabel,
+  currentZone,
 } from './time.js';
 
 import {
+  KEYS,
   getAwakeMinutes,
   getLastWakeMs,
   setLastWakeMs,
+  clearLastWakeMs,
+  getSavedZone,
+  setSavedZone,
+  removeItem,
   setAwakeMinutes,
   DEFAULTS,
 } from './storage.js';
@@ -27,6 +33,7 @@ const els = {
   wakeButton: document.getElementById('wake-button'),
   prediction: document.getElementById('prediction'),
   bedtimeTime: document.getElementById('bedtime-time'),
+  bedtimeDay: document.getElementById('bedtime-day'),
   countdown: document.getElementById('countdown'),
   wakeTime: document.getElementById('wake-time'),
   awakeDuration: document.getElementById('awake-duration'),
@@ -37,6 +44,12 @@ const els = {
   settingsPreview: document.getElementById('settings-preview'),
   previewBedtime: document.getElementById('preview-bedtime'),
   previewHint: document.getElementById('preview-hint'),
+  confirmDialog: document.getElementById('confirm-dialog'),
+  confirmTime: document.getElementById('confirm-time'),
+  toast: document.getElementById('toast'),
+  toastMessage: document.getElementById('toast-message'),
+  toastUndo: document.getElementById('toast-undo'),
+  zoneNote: document.getElementById('zone-note'),
 };
 
 /** The screens of the app and the element that holds them. */
@@ -52,6 +65,18 @@ const state = {
 
 let timerId = null;
 let lastCountdownLabel = '';
+let lastTapAt = 0;
+let toastTimer = null;
+let undoHandler = null;
+
+/** A wake-up older than this is treated as a new day, not a double tap. */
+const RECENT_TAP_WINDOW_MS = 4 * 60 * 60 * 1000;
+
+/** Taps that arrive faster than this are ignored. */
+const TAP_DEBOUNCE_MS = 700;
+
+/** How long the undo toast stays on screen. */
+const TOAST_DURATION_MS = 6000;
 
 /* ------------------------------------------------------------------ *
  * Routing
@@ -90,12 +115,31 @@ function showView(name) {
  * ------------------------------------------------------------------ */
 
 /**
+ * Warn the user when the device time zone no longer matches the zone the
+ * wake-up was recorded in. The stored instant stays correct either way, only
+ * the way it is written out changes.
+ */
+function renderZoneNote() {
+  const savedZone = getSavedZone();
+  const current = currentZone();
+
+  if (!savedZone || savedZone === 'unknown' || current === 'unknown' || savedZone === current) {
+    els.zoneNote.hidden = true;
+    return;
+  }
+
+  els.zoneNote.hidden = false;
+  els.zoneNote.textContent = `Your time zone changed to ${current.replace(/_/g, ' ')}. The times below use the new zone.`;
+}
+
+/**
  * Draw the current state into the DOM.
  */
 function render() {
   const { wakeMs, awakeMinutes } = state;
 
   renderPreview();
+  renderZoneNote();
 
   if (wakeMs === null) {
     els.prediction.hidden = true;
@@ -112,6 +156,10 @@ function render() {
   els.awakeDuration.textContent = formatDurationMinutes(awakeMinutes);
   els.bedtimeTime.textContent = formatTime(bedtimeMs);
 
+  // Say which day the bedtime is on when it is not today.
+  const dayDelta = dayOffset(Date.now(), bedtimeMs);
+  els.bedtimeDay.textContent = dayDelta === 0 ? '' : ` (${formatDayOffsetLabel(dayDelta)})`;
+
   updateCountdown(bedtimeMs);
 }
 
@@ -123,8 +171,7 @@ function render() {
  */
 function updateCountdown(bedtimeMs) {
   const remaining = bedtimeMs - Date.now();
-  const { overdue, text } = formatCountdown(remaining);
-  const label = overdue ? `Bedtime was ${text} ago` : `Bedtime in ${text}`;
+  const { label, overdue } = formatCountdownLabel(remaining);
 
   if (label === lastCountdownLabel) return;
 
@@ -169,7 +216,7 @@ function renderPreview() {
   els.settingsPreview.hidden = false;
 
   const bedtimeMs = predictBedtime(state.wakeMs, state.awakeMinutes);
-  const offset = dayOffset(state.wakeMs, bedtimeMs);
+  const offset = dayOffset(Date.now(), bedtimeMs);
 
   els.previewBedtime.textContent = formatTime(bedtimeMs);
   els.previewHint.textContent = `Bedtime is ${formatDayOffsetLabel(offset)}`;
@@ -194,25 +241,112 @@ function stopTimer() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Toast
+ * ------------------------------------------------------------------ */
+
+/**
+ * Show a short lived message, optionally with an undo action.
+ * @param {string} message
+ * @param {(() => void)|null} [onUndo]
+ */
+function showToast(message, onUndo) {
+  els.toastMessage.textContent = message;
+  els.toastUndo.hidden = typeof onUndo !== 'function';
+  undoHandler = typeof onUndo === 'function' ? onUndo : null;
+
+  els.toast.hidden = false;
+
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(hideToast, TOAST_DURATION_MS);
+}
+
+/**
+ * Hide the toast and forget the undo action.
+ */
+function hideToast() {
+  window.clearTimeout(toastTimer);
+  toastTimer = null;
+
+  els.toast.hidden = true;
+  undoHandler = null;
+}
+
+/* ------------------------------------------------------------------ *
  * Actions
  * ------------------------------------------------------------------ */
 
 /**
- * Record the current moment as the wake-up time.
+ * Store a wake-up time as the current one.
+ * @param {number} now epoch milliseconds
  */
-function recordWakeUp() {
-  const now = Date.now();
+function applyWakeUp(now) {
+  const previousWakeMs = state.wakeMs;
+  const previousZone = getSavedZone();
 
   state.wakeMs = now;
   setLastWakeMs(now);
+  setSavedZone(currentZone());
 
   render();
   startTimer();
+
+  showToast(`Wake-up saved at ${formatTime(now)}`, () => {
+    if (previousWakeMs === null) {
+      state.wakeMs = null;
+      clearLastWakeMs();
+    } else {
+      state.wakeMs = previousWakeMs;
+      setLastWakeMs(previousWakeMs);
+    }
+
+    if (previousZone === null) removeItem(KEYS.zone);
+    else setSavedZone(previousZone);
+
+    render();
+  });
 }
 
-/* ------------------------------------------------------------------ *
- * Launch actions
- * ------------------------------------------------------------------ */
+/**
+ * Ask whether an existing wake-up time should be replaced.
+ * @param {number} now epoch milliseconds
+ */
+function confirmReplace(now) {
+  els.confirmTime.textContent = formatTime(state.wakeMs);
+
+  if (typeof els.confirmDialog.showModal !== 'function') {
+    // Very old browsers without <dialog> support.
+    if (window.confirm('Replace your wake-up time?')) applyWakeUp(now);
+    return;
+  }
+
+  if (els.confirmDialog.open) return;
+
+  els.confirmDialog.returnValue = 'cancel';
+  els.confirmDialog.showModal();
+}
+
+/**
+ * Handle a tap on the "I woke up" button.
+ *
+ * A wake-up that was recorded a short while ago is probably a double tap, so
+ * the user gets asked before it is replaced. Very fast taps are ignored.
+ */
+function requestWakeUp() {
+  const now = Date.now();
+
+  if (now - lastTapAt < TAP_DEBOUNCE_MS) return;
+  lastTapAt = now;
+
+  const previousWakeMs = state.wakeMs;
+  const isRecent = previousWakeMs !== null && now - previousWakeMs < RECENT_TAP_WINDOW_MS;
+
+  if (isRecent) {
+    confirmReplace(now);
+    return;
+  }
+
+  applyWakeUp(now);
+}
 
 /**
  * Handle the "I woke up" shortcut of the installed app.
@@ -224,7 +358,7 @@ function handleLaunchAction() {
   const action = new URLSearchParams(window.location.search).get('action');
   if (action !== 'wake') return;
 
-  recordWakeUp();
+  requestWakeUp();
 
   // Drop the action from the URL so a reload does not record it twice.
   const url = new URL(window.location.href);
@@ -257,7 +391,17 @@ function registerServiceWorker() {
  * Bootstrap
  * ------------------------------------------------------------------ */
 
-els.wakeButton.addEventListener('click', recordWakeUp);
+els.wakeButton.addEventListener('click', requestWakeUp);
+
+els.confirmDialog.addEventListener('close', () => {
+  if (els.confirmDialog.returnValue === 'replace') applyWakeUp(Date.now());
+});
+
+els.toastUndo.addEventListener('click', () => {
+  const undo = undoHandler;
+  hideToast();
+  if (undo) undo();
+});
 
 els.durationDecrease.addEventListener('click', () => changeAwakeMinutes(-DEFAULTS.stepMinutes));
 els.durationIncrease.addEventListener('click', () => changeAwakeMinutes(DEFAULTS.stepMinutes));
@@ -276,6 +420,12 @@ document.addEventListener('visibilitychange', () => {
   }
   render();
   startTimer();
+});
+
+// The time zone can change while the app stays open, for example when the
+// device travels or the user picks another zone.
+window.addEventListener('focus', () => {
+  render();
 });
 
 showView(routeFromHash());

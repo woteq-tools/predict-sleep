@@ -38,7 +38,9 @@
 
           <section class="card prediction" id="prediction" hidden aria-live="polite">
             <p class="prediction__label">Predicted bedtime</p>
-            <p class="prediction__time" id="bedtime-time">&mdash;</p>
+            <p class="prediction__time">
+              <span id="bedtime-time">&mdash;</span><span class="prediction__day" id="bedtime-day"></span>
+            </p>
             <p class="prediction__countdown" id="countdown">&mdash;</p>
 
             <dl class="meta">
@@ -51,6 +53,8 @@
                 <dd id="awake-duration">&mdash;</dd>
               </div>
             </dl>
+
+            <p class="zone-note" id="zone-note" hidden></p>
           </section>
 
           <p class="empty" id="empty-state">
@@ -95,6 +99,25 @@
         </section>
       </main>
     </div>
+
+    <div class="toast" id="toast" hidden role="status" aria-live="polite">
+      <span class="toast__message" id="toast-message"></span>
+      <button class="toast__action" id="toast-undo" type="button">Undo</button>
+    </div>
+
+    <dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">
+      <form method="dialog" class="dialog__form">
+        <h2 class="dialog__title" id="confirm-title">Replace your wake-up time?</h2>
+        <p class="dialog__text">
+          You already recorded a wake-up at <strong id="confirm-time">&mdash;</strong>. Replace it with
+          the current time?
+        </p>
+        <div class="dialog__actions">
+          <button class="button" type="submit" value="cancel">Keep it</button>
+          <button class="button button--primary" type="submit" value="replace">Replace</button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="./app.js"></script>
   </body>
