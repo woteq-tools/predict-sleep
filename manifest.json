@@ -1,0 +1,11 @@
+{
+  "name": "Sleep Predictor",
+  "short_name": "Sleep",
+  "description": "Predict when you should go to sleep next, based on when you woke up.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "icons": []
+}
