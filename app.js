@@ -13,13 +13,18 @@ import {
   formatDurationMinutes,
   dayOffset,
   formatDayOffsetLabel,
+  currentZone,
 } from './time.js';
 
 import {
+  KEYS,
   getAwakeMinutes,
   getLastWakeMs,
   setLastWakeMs,
   clearLastWakeMs,
+  getSavedZone,
+  setSavedZone,
+  removeItem,
   setAwakeMinutes,
   DEFAULTS,
 } from './storage.js';
@@ -44,6 +49,7 @@ const els = {
   toast: document.getElementById('toast'),
   toastMessage: document.getElementById('toast-message'),
   toastUndo: document.getElementById('toast-undo'),
+  zoneNote: document.getElementById('zone-note'),
 };
 
 /** The screens of the app and the element that holds them. */
@@ -109,12 +115,31 @@ function showView(name) {
  * ------------------------------------------------------------------ */
 
 /**
+ * Warn the user when the device time zone no longer matches the zone the
+ * wake-up was recorded in. The stored instant stays correct either way, only
+ * the way it is written out changes.
+ */
+function renderZoneNote() {
+  const savedZone = getSavedZone();
+  const current = currentZone();
+
+  if (!savedZone || savedZone === 'unknown' || current === 'unknown' || savedZone === current) {
+    els.zoneNote.hidden = true;
+    return;
+  }
+
+  els.zoneNote.hidden = false;
+  els.zoneNote.textContent = `Your time zone changed to ${current.replace(/_/g, ' ')}. The times below use the new zone.`;
+}
+
+/**
  * Draw the current state into the DOM.
  */
 function render() {
   const { wakeMs, awakeMinutes } = state;
 
   renderPreview();
+  renderZoneNote();
 
   if (wakeMs === null) {
     els.prediction.hidden = true;
@@ -257,9 +282,11 @@ function hideToast() {
  */
 function applyWakeUp(now) {
   const previousWakeMs = state.wakeMs;
+  const previousZone = getSavedZone();
 
   state.wakeMs = now;
   setLastWakeMs(now);
+  setSavedZone(currentZone());
 
   render();
   startTimer();
@@ -272,6 +299,9 @@ function applyWakeUp(now) {
       state.wakeMs = previousWakeMs;
       setLastWakeMs(previousWakeMs);
     }
+
+    if (previousZone === null) removeItem(KEYS.zone);
+    else setSavedZone(previousZone);
 
     render();
   });
@@ -391,6 +421,12 @@ document.addEventListener('visibilitychange', () => {
   }
   render();
   startTimer();
+});
+
+// The time zone can change while the app stays open, for example when the
+// device travels or the user picks another zone.
+window.addEventListener('focus', () => {
+  render();
 });
 
 showView(routeFromHash());

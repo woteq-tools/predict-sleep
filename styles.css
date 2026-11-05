@@ -496,6 +496,16 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.zone-note {
+  margin: var(--space-md) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  text-align: left;
+}
+
 .empty {
   margin: 0;
   padding: var(--space-lg);
