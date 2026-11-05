@@ -19,6 +19,7 @@ import {
   getAwakeMinutes,
   getLastWakeMs,
   setLastWakeMs,
+  clearLastWakeMs,
   setAwakeMinutes,
   DEFAULTS,
 } from './storage.js';
@@ -39,6 +40,9 @@ const els = {
   previewHint: document.getElementById('preview-hint'),
   confirmDialog: document.getElementById('confirm-dialog'),
   confirmTime: document.getElementById('confirm-time'),
+  toast: document.getElementById('toast'),
+  toastMessage: document.getElementById('toast-message'),
+  toastUndo: document.getElementById('toast-undo'),
 };
 
 /** The screens of the app and the element that holds them. */
@@ -55,12 +59,17 @@ const state = {
 let timerId = null;
 let lastCountdownLabel = '';
 let lastTapAt = 0;
+let toastTimer = null;
+let undoHandler = null;
 
 /** A wake-up older than this is treated as a new day, not a double tap. */
 const RECENT_TAP_WINDOW_MS = 4 * 60 * 60 * 1000;
 
 /** Taps that arrive faster than this are ignored. */
 const TAP_DEBOUNCE_MS = 700;
+
+/** How long the undo toast stays on screen. */
+const TOAST_DURATION_MS = 6000;
 
 /* ------------------------------------------------------------------ *
  * Routing
@@ -203,6 +212,37 @@ function stopTimer() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Toast
+ * ------------------------------------------------------------------ */
+
+/**
+ * Show a short lived message, optionally with an undo action.
+ * @param {string} message
+ * @param {(() => void)|null} [onUndo]
+ */
+function showToast(message, onUndo) {
+  els.toastMessage.textContent = message;
+  els.toastUndo.hidden = typeof onUndo !== 'function';
+  undoHandler = typeof onUndo === 'function' ? onUndo : null;
+
+  els.toast.hidden = false;
+
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(hideToast, TOAST_DURATION_MS);
+}
+
+/**
+ * Hide the toast and forget the undo action.
+ */
+function hideToast() {
+  window.clearTimeout(toastTimer);
+  toastTimer = null;
+
+  els.toast.hidden = true;
+  undoHandler = null;
+}
+
+/* ------------------------------------------------------------------ *
  * Actions
  * ------------------------------------------------------------------ */
 
@@ -211,11 +251,25 @@ function stopTimer() {
  * @param {number} now epoch milliseconds
  */
 function applyWakeUp(now) {
+  const previousWakeMs = state.wakeMs;
+
   state.wakeMs = now;
   setLastWakeMs(now);
 
   render();
   startTimer();
+
+  showToast(`Wake-up saved at ${formatTime(now)}`, () => {
+    if (previousWakeMs === null) {
+      state.wakeMs = null;
+      clearLastWakeMs();
+    } else {
+      state.wakeMs = previousWakeMs;
+      setLastWakeMs(previousWakeMs);
+    }
+
+    render();
+  });
 }
 
 /**
@@ -307,6 +361,12 @@ els.wakeButton.addEventListener('click', requestWakeUp);
 
 els.confirmDialog.addEventListener('close', () => {
   if (els.confirmDialog.returnValue === 'replace') applyWakeUp(Date.now());
+});
+
+els.toastUndo.addEventListener('click', () => {
+  const undo = undoHandler;
+  hideToast();
+  if (undo) undo();
 });
 
 els.durationDecrease.addEventListener('click', () => changeAwakeMinutes(-DEFAULTS.stepMinutes));
