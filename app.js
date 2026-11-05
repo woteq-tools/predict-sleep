@@ -25,6 +25,8 @@ import {
   getSavedZone,
   setSavedZone,
   removeItem,
+  addHistoryEntry,
+  removeHistoryEntry,
   setAwakeMinutes,
   DEFAULTS,
 } from './storage.js';
@@ -287,6 +289,12 @@ function applyWakeUp(now) {
   setLastWakeMs(now);
   setSavedZone(currentZone());
 
+  addHistoryEntry({
+    wakeMs: now,
+    bedtimeMs: predictBedtime(now, state.awakeMinutes),
+    awakeMinutes: state.awakeMinutes,
+  });
+
   render();
   startTimer();
 
@@ -298,6 +306,8 @@ function applyWakeUp(now) {
       state.wakeMs = previousWakeMs;
       setLastWakeMs(previousWakeMs);
     }
+
+    removeHistoryEntry(now);
 
     if (previousZone === null) removeItem(KEYS.zone);
     else setSavedZone(previousZone);
