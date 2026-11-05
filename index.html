@@ -17,6 +17,10 @@
     <div class="app">
       <header class="app__header">
         <h1 class="app__title">Sleep Predictor</h1>
+        <nav class="app__nav" aria-label="Main">
+          <a href="#/home" data-nav="home">Home</a>
+          <a href="#/settings" data-nav="settings">Settings</a>
+        </nav>
       </header>
 
       <main class="app__main">
@@ -46,6 +50,42 @@
           <p class="empty" id="empty-state">
             No wake-up recorded yet. Tap the button when you wake up.
           </p>
+        </section>
+
+        <section class="view" id="view-settings" hidden>
+          <h2 class="view__title">Settings</h2>
+
+          <section class="card field">
+            <p class="field__label" id="duration-label">Stay awake for</p>
+            <div class="stepper" role="group" aria-labelledby="duration-label">
+              <button
+                class="stepper__button"
+                id="duration-decrease"
+                type="button"
+                aria-label="Stay awake 15 minutes less"
+              >
+                &minus;
+              </button>
+              <output class="stepper__value" id="duration-value" aria-live="polite">16h 00m</output>
+              <button
+                class="stepper__button"
+                id="duration-increase"
+                type="button"
+                aria-label="Stay awake 15 minutes more"
+              >
+                +
+              </button>
+            </div>
+            <p class="field__hint">
+              Between 1h and 24h, in 15 minute steps. Applies to your current and future predictions.
+            </p>
+          </section>
+
+          <section class="card preview" id="settings-preview" hidden>
+            <p class="field__label">Your bedtime would be</p>
+            <p class="preview__value" id="preview-bedtime">&mdash;</p>
+            <p class="field__hint" id="preview-hint"></p>
+          </section>
         </section>
       </main>
     </div>

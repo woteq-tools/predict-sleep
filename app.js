@@ -11,9 +11,17 @@ import {
   formatTime,
   formatCountdown,
   formatDurationMinutes,
+  dayOffset,
+  formatDayOffsetLabel,
 } from './time.js';
 
-import { getAwakeMinutes, getLastWakeMs, setLastWakeMs } from './storage.js';
+import {
+  getAwakeMinutes,
+  getLastWakeMs,
+  setLastWakeMs,
+  setAwakeMinutes,
+  DEFAULTS,
+} from './storage.js';
 
 const els = {
   wakeButton: document.getElementById('wake-button'),
@@ -23,6 +31,18 @@ const els = {
   wakeTime: document.getElementById('wake-time'),
   awakeDuration: document.getElementById('awake-duration'),
   emptyState: document.getElementById('empty-state'),
+  durationValue: document.getElementById('duration-value'),
+  durationDecrease: document.getElementById('duration-decrease'),
+  durationIncrease: document.getElementById('duration-increase'),
+  settingsPreview: document.getElementById('settings-preview'),
+  previewBedtime: document.getElementById('preview-bedtime'),
+  previewHint: document.getElementById('preview-hint'),
+};
+
+/** The screens of the app and the element that holds them. */
+const VIEWS = {
+  home: 'view-home',
+  settings: 'view-settings',
 };
 
 const state = {
@@ -34,6 +54,38 @@ let timerId = null;
 let lastCountdownLabel = '';
 
 /* ------------------------------------------------------------------ *
+ * Routing
+ * ------------------------------------------------------------------ */
+
+/**
+ * The screen that the current URL hash points at.
+ * @returns {string} a key of `VIEWS`
+ */
+function routeFromHash() {
+  const name = (window.location.hash || '').replace(/^#\/?/, '');
+  return Object.prototype.hasOwnProperty.call(VIEWS, name) ? name : 'home';
+}
+
+/**
+ * Show one screen and hide the others.
+ * @param {string} name a key of `VIEWS`
+ */
+function showView(name) {
+  for (const [route, id] of Object.entries(VIEWS)) {
+    document.getElementById(id).hidden = route !== name;
+  }
+
+  for (const link of document.querySelectorAll('[data-nav]')) {
+    const isActive = link.dataset.nav === name;
+    link.classList.toggle('is-active', isActive);
+    if (isActive) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  }
+
+  window.scrollTo(0, 0);
+}
+
+/* ------------------------------------------------------------------ *
  * Rendering
  * ------------------------------------------------------------------ */
 
@@ -42,6 +94,8 @@ let lastCountdownLabel = '';
  */
 function render() {
   const { wakeMs, awakeMinutes } = state;
+
+  renderPreview();
 
   if (wakeMs === null) {
     els.prediction.hidden = true;
@@ -77,6 +131,48 @@ function updateCountdown(bedtimeMs) {
   lastCountdownLabel = label;
   els.countdown.textContent = label;
   els.countdown.classList.toggle('is-overdue', overdue);
+}
+
+/* ------------------------------------------------------------------ *
+ * Awake duration stepper
+ * ------------------------------------------------------------------ */
+
+/**
+ * Show the current awake duration and grey out the buttons that would leave
+ * the allowed range.
+ */
+function updateStepper() {
+  els.durationValue.textContent = formatDurationMinutes(state.awakeMinutes);
+  els.durationDecrease.disabled = state.awakeMinutes <= DEFAULTS.minAwakeMinutes;
+  els.durationIncrease.disabled = state.awakeMinutes >= DEFAULTS.maxAwakeMinutes;
+}
+
+/**
+ * Move the awake duration by one step, save it and apply it right away.
+ * @param {number} deltaMinutes
+ */
+function changeAwakeMinutes(deltaMinutes) {
+  state.awakeMinutes = setAwakeMinutes(state.awakeMinutes + deltaMinutes);
+  updateStepper();
+  render();
+}
+
+/**
+ * Show which bedtime the current awake duration would produce.
+ */
+function renderPreview() {
+  if (state.wakeMs === null) {
+    els.settingsPreview.hidden = true;
+    return;
+  }
+
+  els.settingsPreview.hidden = false;
+
+  const bedtimeMs = predictBedtime(state.wakeMs, state.awakeMinutes);
+  const offset = dayOffset(state.wakeMs, bedtimeMs);
+
+  els.previewBedtime.textContent = formatTime(bedtimeMs);
+  els.previewHint.textContent = `Bedtime is ${formatDayOffsetLabel(offset)}`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -120,6 +216,14 @@ function recordWakeUp() {
 
 els.wakeButton.addEventListener('click', recordWakeUp);
 
+els.durationDecrease.addEventListener('click', () => changeAwakeMinutes(-DEFAULTS.stepMinutes));
+els.durationIncrease.addEventListener('click', () => changeAwakeMinutes(DEFAULTS.stepMinutes));
+
+window.addEventListener('hashchange', () => {
+  showView(routeFromHash());
+  render();
+});
+
 // Pause the timer while the app is in the background and refresh the numbers
 // when it comes back - the time zone or the clock may have changed.
 document.addEventListener('visibilitychange', () => {
@@ -131,5 +235,7 @@ document.addEventListener('visibilitychange', () => {
   startTimer();
 });
 
+showView(routeFromHash());
+updateStepper();
 render();
 startTimer();
