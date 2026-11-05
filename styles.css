@@ -445,6 +445,14 @@ body {
   letter-spacing: -0.02em;
 }
 
+.prediction__day {
+  margin-left: 0.35em;
+  font-size: 0.36em;
+  font-weight: 600;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
 .prediction__countdown {
   display: inline-block;
   margin: var(--space-md) 0 0;

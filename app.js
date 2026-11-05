@@ -28,6 +28,7 @@ const els = {
   wakeButton: document.getElementById('wake-button'),
   prediction: document.getElementById('prediction'),
   bedtimeTime: document.getElementById('bedtime-time'),
+  bedtimeDay: document.getElementById('bedtime-day'),
   countdown: document.getElementById('countdown'),
   wakeTime: document.getElementById('wake-time'),
   awakeDuration: document.getElementById('awake-duration'),
@@ -130,6 +131,10 @@ function render() {
   els.awakeDuration.textContent = formatDurationMinutes(awakeMinutes);
   els.bedtimeTime.textContent = formatTime(bedtimeMs);
 
+  // Say which day the bedtime is on when it is not today.
+  const dayDelta = dayOffset(Date.now(), bedtimeMs);
+  els.bedtimeDay.textContent = dayDelta === 0 ? '' : ` (${formatDayOffsetLabel(dayDelta)})`;
+
   updateCountdown(bedtimeMs);
 }
 
@@ -187,7 +192,7 @@ function renderPreview() {
   els.settingsPreview.hidden = false;
 
   const bedtimeMs = predictBedtime(state.wakeMs, state.awakeMinutes);
-  const offset = dayOffset(state.wakeMs, bedtimeMs);
+  const offset = dayOffset(Date.now(), bedtimeMs);
 
   els.previewBedtime.textContent = formatTime(bedtimeMs);
   els.previewHint.textContent = `Bedtime is ${formatDayOffsetLabel(offset)}`;
