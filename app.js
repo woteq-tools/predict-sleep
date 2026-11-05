@@ -211,9 +211,30 @@ function recordWakeUp() {
 }
 
 /* ------------------------------------------------------------------ *
- * Service worker
+ * Launch actions
  * ------------------------------------------------------------------ */
 
+/**
+ * Handle the "I woke up" shortcut of the installed app.
+ *
+ * On Android the launcher can start the app with `?action=wake`, which
+ * records a wake-up right away.
+ */
+function handleLaunchAction() {
+  const action = new URLSearchParams(window.location.search).get('action');
+  if (action !== 'wake') return;
+
+  recordWakeUp();
+
+  // Drop the action from the URL so a reload does not record it twice.
+  const url = new URL(window.location.href);
+  url.searchParams.delete('action');
+  window.history.replaceState({}, '', url);
+}
+
+/* ------------------------------------------------------------------ *
+ * Service worker
+ * ------------------------------------------------------------------ */
 /**
  * Register the service worker so the app keeps working offline.
  * Registration only works over HTTPS (or on localhost) and is skipped
@@ -261,4 +282,5 @@ showView(routeFromHash());
 updateStepper();
 render();
 startTimer();
+handleLaunchAction();
 registerServiceWorker();

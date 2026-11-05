@@ -30,5 +30,20 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "I woke up",
+      "short_name": "Wake up",
+      "description": "Record that you just woke up and see your bedtime.",
+      "url": "./?action=wake",
+      "icons": [
+        {
+          "src": "./icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }
