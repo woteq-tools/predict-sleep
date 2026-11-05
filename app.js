@@ -11,9 +11,17 @@ import {
   formatTime,
   formatCountdown,
   formatDurationMinutes,
+  dayOffset,
+  formatDayOffsetLabel,
 } from './time.js';
 
-import { getAwakeMinutes, getLastWakeMs, setLastWakeMs, clampAwakeMinutes, DEFAULTS } from './storage.js';
+import {
+  getAwakeMinutes,
+  getLastWakeMs,
+  setLastWakeMs,
+  setAwakeMinutes,
+  DEFAULTS,
+} from './storage.js';
 
 const els = {
   wakeButton: document.getElementById('wake-button'),
@@ -26,6 +34,9 @@ const els = {
   durationValue: document.getElementById('duration-value'),
   durationDecrease: document.getElementById('duration-decrease'),
   durationIncrease: document.getElementById('duration-increase'),
+  settingsPreview: document.getElementById('settings-preview'),
+  previewBedtime: document.getElementById('preview-bedtime'),
+  previewHint: document.getElementById('preview-hint'),
 };
 
 /** The screens of the app and the element that holds them. */
@@ -84,6 +95,8 @@ function showView(name) {
 function render() {
   const { wakeMs, awakeMinutes } = state;
 
+  renderPreview();
+
   if (wakeMs === null) {
     els.prediction.hidden = true;
     els.emptyState.hidden = false;
@@ -135,12 +148,31 @@ function updateStepper() {
 }
 
 /**
- * Move the awake duration by one step.
+ * Move the awake duration by one step, save it and apply it right away.
  * @param {number} deltaMinutes
  */
 function changeAwakeMinutes(deltaMinutes) {
-  state.awakeMinutes = clampAwakeMinutes(state.awakeMinutes + deltaMinutes);
+  state.awakeMinutes = setAwakeMinutes(state.awakeMinutes + deltaMinutes);
   updateStepper();
+  render();
+}
+
+/**
+ * Show which bedtime the current awake duration would produce.
+ */
+function renderPreview() {
+  if (state.wakeMs === null) {
+    els.settingsPreview.hidden = true;
+    return;
+  }
+
+  els.settingsPreview.hidden = false;
+
+  const bedtimeMs = predictBedtime(state.wakeMs, state.awakeMinutes);
+  const offset = dayOffset(state.wakeMs, bedtimeMs);
+
+  els.previewBedtime.textContent = formatTime(bedtimeMs);
+  els.previewHint.textContent = `Bedtime is ${formatDayOffsetLabel(offset)}`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -187,7 +219,10 @@ els.wakeButton.addEventListener('click', recordWakeUp);
 els.durationDecrease.addEventListener('click', () => changeAwakeMinutes(-DEFAULTS.stepMinutes));
 els.durationIncrease.addEventListener('click', () => changeAwakeMinutes(DEFAULTS.stepMinutes));
 
-window.addEventListener('hashchange', () => showView(routeFromHash()));
+window.addEventListener('hashchange', () => {
+  showView(routeFromHash());
+  render();
+});
 
 // Pause the timer while the app is in the background and refresh the numbers
 // when it comes back - the time zone or the clock may have changed.
