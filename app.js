@@ -211,6 +211,28 @@ function recordWakeUp() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Service worker
+ * ------------------------------------------------------------------ */
+
+/**
+ * Register the service worker so the app keeps working offline.
+ * Registration only works over HTTPS (or on localhost) and is skipped
+ * gracefully when the browser does not support it.
+ */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+
+  const register = () => {
+    navigator.serviceWorker.register('./sw.js').catch((error) => {
+      console.warn('The service worker could not be registered:', error);
+    });
+  };
+
+  if (document.readyState === 'complete') register();
+  else window.addEventListener('load', register, { once: true });
+}
+
+/* ------------------------------------------------------------------ *
  * Bootstrap
  * ------------------------------------------------------------------ */
 
@@ -239,3 +261,4 @@ showView(routeFromHash());
 updateStepper();
 render();
 startTimer();
+registerServiceWorker();
