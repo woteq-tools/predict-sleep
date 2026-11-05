@@ -69,6 +69,14 @@
   box-sizing: border-box;
 }
 
+/*
+ * The hidden attribute has to win over the display rules further down,
+ * otherwise elements such as the toast stay on screen.
+ */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
