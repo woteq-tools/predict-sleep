@@ -26,6 +26,7 @@
         <nav class="app__nav" aria-label="Main">
           <a href="#/home" data-nav="home">Home</a>
           <a href="#/settings" data-nav="settings">Settings</a>
+          <a href="#/history" data-nav="history">History</a>
         </nav>
       </header>
 
@@ -96,6 +97,31 @@
             <p class="preview__value" id="preview-bedtime">&mdash;</p>
             <p class="field__hint" id="preview-hint"></p>
           </section>
+
+          <section class="card field">
+            <label class="switch">
+              <input type="checkbox" id="notify-toggle" />
+              <span class="switch__track" aria-hidden="true"></span>
+              <span class="switch__label">
+                <strong>Remind me before bedtime</strong>
+                <small>A notification 30 minutes before your predicted bedtime. It arrives while the app is open.</small>
+              </span>
+            </label>
+            <p class="field__hint" id="notify-note" hidden></p>
+          </section>
+        </section>
+        <section class="view" id="view-history" hidden>
+          <h2 class="view__title">History</h2>
+
+          <ul class="history" id="history-list"></ul>
+
+          <p class="empty" id="history-empty">
+            No wake-ups recorded yet. Every time you tap "I woke up" it shows up here.
+          </p>
+
+          <div class="history__actions">
+            <button class="button" id="history-clear" type="button" hidden>Clear history</button>
+          </div>
         </section>
       </main>
     </div>
@@ -108,13 +134,12 @@
     <dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">
       <form method="dialog" class="dialog__form">
         <h2 class="dialog__title" id="confirm-title">Replace your wake-up time?</h2>
-        <p class="dialog__text">
-          You already recorded a wake-up at <strong id="confirm-time">&mdash;</strong>. Replace it with
-          the current time?
-        </p>
+        <p class="dialog__text" id="confirm-text"></p>
         <div class="dialog__actions">
-          <button class="button" type="submit" value="cancel">Keep it</button>
-          <button class="button button--primary" type="submit" value="replace">Replace</button>
+          <button class="button" type="submit" value="cancel" id="confirm-cancel">Keep it</button>
+          <button class="button button--primary" type="submit" value="accept" id="confirm-accept">
+            Replace
+          </button>
         </div>
       </form>
     </dialog>

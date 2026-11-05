@@ -295,6 +295,23 @@ export function addHistoryEntry(entry) {
 }
 
 /**
+ * Remove the newest entry for a given wake-up time.
+ * Used when a wake-up is undone.
+ *
+ * @param {number} wakeMs
+ * @returns {Array} the updated history
+ */
+export function removeHistoryEntry(wakeMs) {
+  const history = getHistory();
+  const index = history.findIndex((entry) => entry.wakeMs === wakeMs);
+  if (index === -1) return history;
+
+  history.splice(index, 1);
+  setItem(KEYS.history, history);
+  return history;
+}
+
+/**
  * Remove every history entry.
  */
 export function clearHistory() {

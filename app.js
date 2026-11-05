@@ -9,11 +9,13 @@
 import {
   predictBedtime,
   formatTime,
+  formatDateShort,
   formatCountdownLabel,
   formatDurationMinutes,
   dayOffset,
   formatDayOffsetLabel,
   currentZone,
+  MINUTE_MS,
 } from './time.js';
 
 import {
@@ -25,6 +27,13 @@ import {
   getSavedZone,
   setSavedZone,
   removeItem,
+  getHistory,
+  addHistoryEntry,
+  removeHistoryEntry,
+  clearHistory,
+  getNotifyEnabled,
+  setNotifyEnabled,
+  getNotifyLeadMinutes,
   setAwakeMinutes,
   DEFAULTS,
 } from './storage.js';
@@ -45,17 +54,26 @@ const els = {
   previewBedtime: document.getElementById('preview-bedtime'),
   previewHint: document.getElementById('preview-hint'),
   confirmDialog: document.getElementById('confirm-dialog'),
-  confirmTime: document.getElementById('confirm-time'),
+  confirmTitle: document.getElementById('confirm-title'),
+  confirmText: document.getElementById('confirm-text'),
+  confirmAccept: document.getElementById('confirm-accept'),
+  confirmCancel: document.getElementById('confirm-cancel'),
   toast: document.getElementById('toast'),
   toastMessage: document.getElementById('toast-message'),
   toastUndo: document.getElementById('toast-undo'),
   zoneNote: document.getElementById('zone-note'),
+  historyList: document.getElementById('history-list'),
+  historyEmpty: document.getElementById('history-empty'),
+  historyClear: document.getElementById('history-clear'),
+  notifyToggle: document.getElementById('notify-toggle'),
+  notifyNote: document.getElementById('notify-note'),
 };
 
 /** The screens of the app and the element that holds them. */
 const VIEWS = {
   home: 'view-home',
   settings: 'view-settings',
+  history: 'view-history',
 };
 
 const state = {
@@ -107,6 +125,8 @@ function showView(name) {
     else link.removeAttribute('aria-current');
   }
 
+  renderHistory();
+
   window.scrollTo(0, 0);
 }
 
@@ -140,6 +160,7 @@ function render() {
 
   renderPreview();
   renderZoneNote();
+  renderHistory();
 
   if (wakeMs === null) {
     els.prediction.hidden = true;
@@ -181,6 +202,186 @@ function updateCountdown(bedtimeMs) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Reminder scheduling
+ * ------------------------------------------------------------------ */
+
+/** setTimeout cannot wait longer than this, so long waits are chained. */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
+let reminderTimer = null;
+
+/**
+ * Show the bedtime reminder.
+ * @param {number} bedtimeMs
+ */
+async function showReminder(bedtimeMs) {
+  const title = 'Time to wind down';
+  const body = `Your predicted bedtime is ${formatTime(bedtimeMs)}.`;
+
+  const options = {
+    body,
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag: 'bedtime-reminder',
+  };
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.showNotification(title, options);
+        return;
+      }
+    }
+
+    new Notification(title, options);
+  } catch (error) {
+    console.warn('The reminder could not be shown:', error);
+  }
+}
+
+/**
+ * Schedule the reminder for 30 minutes before the predicted bedtime.
+ *
+ * A web app can only fire this while it is running: there is no reliable way
+ * to run a timer in a closed PWA, and scheduled notifications without a push
+ * server are not available.
+ */
+function scheduleReminder() {
+  window.clearTimeout(reminderTimer);
+  reminderTimer = null;
+
+  if (!getNotifyEnabled()) return;
+  if (state.wakeMs === null) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const bedtimeMs = predictBedtime(state.wakeMs, state.awakeMinutes);
+  const notifyAt = bedtimeMs - getNotifyLeadMinutes() * MINUTE_MS;
+  const delay = notifyAt - Date.now();
+
+  // The reminder moment has already passed.
+  if (delay <= 0) return;
+
+  if (delay > MAX_TIMEOUT_MS) {
+    reminderTimer = window.setTimeout(scheduleReminder, MAX_TIMEOUT_MS);
+    return;
+  }
+
+  reminderTimer = window.setTimeout(() => {
+    reminderTimer = null;
+    showReminder(bedtimeMs);
+  }, delay);
+}
+
+/* ------------------------------------------------------------------ *
+ * Reminder notification
+ * ------------------------------------------------------------------ */
+
+/**
+ * Ask the browser for permission to show notifications.
+ *
+ * This must happen inside a user gesture, which is why it is only called when
+ * the user flips the switch in the settings.
+ *
+ * @returns {Promise<string>} the permission state
+ */
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+    return Notification.permission;
+  }
+
+  try {
+    return await Notification.requestPermission();
+  } catch {
+    return 'denied';
+  }
+}
+
+/**
+ * Show the current state of the reminder switch.
+ */
+function renderNotifyToggle() {
+  const enabled = getNotifyEnabled();
+
+  els.notifyToggle.checked = enabled;
+  els.notifyNote.hidden = true;
+
+  if (!enabled) return;
+
+  if (!('Notification' in window)) {
+    els.notifyToggle.checked = false;
+    setNotifyEnabled(false);
+    els.notifyNote.hidden = false;
+    els.notifyNote.textContent = 'This browser cannot show notifications.';
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    els.notifyToggle.checked = false;
+    setNotifyEnabled(false);
+    els.notifyNote.hidden = false;
+    els.notifyNote.textContent =
+      'Notifications are blocked for this site. Allow them in your browser settings to get a reminder.';
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * History
+ * ------------------------------------------------------------------ */
+
+/**
+ * A small helper to build an element.
+ * @param {string} tag
+ * @param {string} [className]
+ * @param {string} [text]
+ * @returns {HTMLElement}
+ */
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/**
+ * Draw the recorded wake-ups into the history list.
+ */
+function renderHistory() {
+  const entries = getHistory();
+
+  els.historyList.textContent = '';
+  els.historyEmpty.hidden = entries.length > 0;
+  els.historyClear.hidden = entries.length === 0;
+
+  for (const entry of entries) {
+    const item = el('li', 'history__item');
+
+    const head = el('div', 'history__head');
+    head.append(
+      el('span', 'history__date', formatDateShort(entry.wakeMs)),
+      el('span', 'history__duration', formatDurationMinutes(entry.awakeMinutes)),
+    );
+
+    // Show the date too when the bedtime is on another calendar day.
+    const nextDay = dayOffset(entry.wakeMs, entry.bedtimeMs) !== 0;
+    const bedtime = nextDay
+      ? `Bedtime ${formatDateShort(entry.bedtimeMs)} ${formatTime(entry.bedtimeMs)}`
+      : `Bedtime ${formatTime(entry.bedtimeMs)}`;
+
+    const detail = el('div', 'history__detail');
+    detail.append(
+      el('span', 'history__wake', `Woke up ${formatTime(entry.wakeMs)}`),
+      el('span', 'history__arrow', '→'),
+      el('span', 'history__bedtime', bedtime),
+    );
+
+    item.append(head, detail);
+    els.historyList.append(item);
+  }
+}
+
+/* ------------------------------------------------------------------ *
  * Awake duration stepper
  * ------------------------------------------------------------------ */
 
@@ -202,6 +403,7 @@ function changeAwakeMinutes(deltaMinutes) {
   state.awakeMinutes = setAwakeMinutes(state.awakeMinutes + deltaMinutes);
   updateStepper();
   render();
+  scheduleReminder();
 }
 
 /**
@@ -238,6 +440,40 @@ function stopTimer() {
   if (timerId === null) return;
   window.clearInterval(timerId);
   timerId = null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Dialog
+ * ------------------------------------------------------------------ */
+
+/**
+ * Ask the user a yes/no question.
+ *
+ * @param {{title: string, text: string, acceptLabel?: string, cancelLabel?: string}} options
+ * @returns {Promise<boolean>} true when the user accepted
+ */
+function askConfirm({ title, text, acceptLabel = 'OK', cancelLabel = 'Cancel' }) {
+  // Very old browsers without <dialog> support.
+  if (typeof els.confirmDialog.showModal !== 'function') {
+    return Promise.resolve(window.confirm(text));
+  }
+
+  if (els.confirmDialog.open) return Promise.resolve(false);
+
+  els.confirmTitle.textContent = title;
+  els.confirmText.textContent = text;
+  els.confirmAccept.textContent = acceptLabel;
+  els.confirmCancel.textContent = cancelLabel;
+  els.confirmDialog.returnValue = 'cancel';
+
+  return new Promise((resolve) => {
+    els.confirmDialog.addEventListener(
+      'close',
+      () => resolve(els.confirmDialog.returnValue === 'accept'),
+      { once: true },
+    );
+    els.confirmDialog.showModal();
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -287,17 +523,25 @@ function applyWakeUp(now) {
   setLastWakeMs(now);
   setSavedZone(currentZone());
 
+  addHistoryEntry({
+    wakeMs: now,
+    bedtimeMs: predictBedtime(now, state.awakeMinutes),
+    awakeMinutes: state.awakeMinutes,
+  });
+
   render();
   startTimer();
+  scheduleReminder();
 
-  showToast(`Wake-up saved at ${formatTime(now)}`, () => {
-    if (previousWakeMs === null) {
+  showToast(`Wake-up saved at ${formatTime(now)}`, () => {    if (previousWakeMs === null) {
       state.wakeMs = null;
       clearLastWakeMs();
     } else {
       state.wakeMs = previousWakeMs;
       setLastWakeMs(previousWakeMs);
     }
+
+    removeHistoryEntry(now);
 
     if (previousZone === null) removeItem(KEYS.zone);
     else setSavedZone(previousZone);
@@ -309,20 +553,17 @@ function applyWakeUp(now) {
 /**
  * Ask whether an existing wake-up time should be replaced.
  * @param {number} now epoch milliseconds
+ * @returns {Promise<void>}
  */
-function confirmReplace(now) {
-  els.confirmTime.textContent = formatTime(state.wakeMs);
+async function confirmReplace(now) {
+  const replace = await askConfirm({
+    title: 'Replace your wake-up time?',
+    text: `You already recorded a wake-up at ${formatTime(state.wakeMs)}. Replace it with the current time?`,
+    acceptLabel: 'Replace',
+    cancelLabel: 'Keep it',
+  });
 
-  if (typeof els.confirmDialog.showModal !== 'function') {
-    // Very old browsers without <dialog> support.
-    if (window.confirm('Replace your wake-up time?')) applyWakeUp(now);
-    return;
-  }
-
-  if (els.confirmDialog.open) return;
-
-  els.confirmDialog.returnValue = 'cancel';
-  els.confirmDialog.showModal();
+  if (replace) applyWakeUp(now);
 }
 
 /**
@@ -403,6 +644,46 @@ els.toastUndo.addEventListener('click', () => {
   if (undo) undo();
 });
 
+els.notifyToggle.addEventListener('change', async () => {
+  if (!els.notifyToggle.checked) {
+    setNotifyEnabled(false);
+    els.notifyNote.hidden = true;
+    scheduleReminder();
+    return;
+  }
+
+  const permission = await requestNotificationPermission();
+
+  if (permission !== 'granted') {
+    els.notifyToggle.checked = false;
+    setNotifyEnabled(false);
+    els.notifyNote.hidden = false;
+    els.notifyNote.textContent =
+      permission === 'unsupported'
+        ? 'This browser cannot show notifications.'
+        : 'Notifications are blocked for this site. Allow them in your browser settings to get a reminder.';
+    scheduleReminder();
+    return;
+  }
+
+  setNotifyEnabled(true);
+  els.notifyNote.hidden = true;
+  scheduleReminder();
+});
+
+els.historyClear.addEventListener('click', async () => {  const clear = await askConfirm({
+    title: 'Clear the history?',
+    text: 'This removes every recorded wake-up and bedtime. It cannot be undone.',
+    acceptLabel: 'Clear',
+    cancelLabel: 'Keep it',
+  });
+
+  if (!clear) return;
+
+  clearHistory();
+  renderHistory();
+});
+
 els.durationDecrease.addEventListener('click', () => changeAwakeMinutes(-DEFAULTS.stepMinutes));
 els.durationIncrease.addEventListener('click', () => changeAwakeMinutes(DEFAULTS.stepMinutes));
 
@@ -420,6 +701,7 @@ document.addEventListener('visibilitychange', () => {
   }
   render();
   startTimer();
+  scheduleReminder();
 });
 
 // The time zone can change while the app stays open, for example when the
@@ -430,7 +712,9 @@ window.addEventListener('focus', () => {
 
 showView(routeFromHash());
 updateStepper();
+renderNotifyToggle();
 render();
 startTimer();
+scheduleReminder();
 handleLaunchAction();
 registerServiceWorker();
