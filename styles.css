@@ -40,6 +40,29 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1020;
+    --surface: #151c31;
+    --surface-muted: #1d2540;
+    --fg: #e9edf9;
+    --fg-muted: #9aa5bf;
+    --border: #27304c;
+
+    --accent: #8b97ff;
+    --accent-strong: #a3adff;
+    --accent-contrast: #0b1020;
+    --accent-soft: rgba(139, 151, 255, 0.16);
+    --warn: #fbbf24;
+    --warn-soft: rgba(251, 191, 36, 0.16);
+
+    --wake-gradient: linear-gradient(160deg, #5f6ef0 0%, #39479f 100%);
+    --wake-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+}
+
 *,
 *::before,
 *::after {
