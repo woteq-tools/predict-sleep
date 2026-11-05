@@ -4,10 +4,49 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Sleep Predictor</title>
+    <meta
+      name="description"
+      content="Predict when you should go to sleep next, based on when you woke up."
+    />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main id="app"></main>
+    <div class="app">
+      <header class="app__header">
+        <h1 class="app__title">Sleep Predictor</h1>
+      </header>
+
+      <main class="app__main">
+        <section class="view" id="view-home">
+          <div class="wake">
+            <button class="wake__button" id="wake-button" type="button">I woke up</button>
+            <p class="wake__hint">Tap it as soon as you open your eyes.</p>
+          </div>
+
+          <section class="card prediction" id="prediction" hidden aria-live="polite">
+            <p class="prediction__label">Predicted bedtime</p>
+            <p class="prediction__time" id="bedtime-time">&mdash;</p>
+            <p class="prediction__countdown" id="countdown">&mdash;</p>
+
+            <dl class="meta">
+              <div class="meta__row">
+                <dt>Woke up</dt>
+                <dd id="wake-time">&mdash;</dd>
+              </div>
+              <div class="meta__row">
+                <dt>Staying awake</dt>
+                <dd id="awake-duration">&mdash;</dd>
+              </div>
+            </dl>
+          </section>
+
+          <p class="empty" id="empty-state">
+            No wake-up recorded yet. Tap the button when you wake up.
+          </p>
+        </section>
+      </main>
+    </div>
+
     <script type="module" src="./app.js"></script>
   </body>
 </html>
