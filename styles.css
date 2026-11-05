@@ -1,0 +1,12 @@
+/* Sleep Predictor - styles (skeleton) */
+:root {
+  --bg: #ffffff;
+  --fg: #111111;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
