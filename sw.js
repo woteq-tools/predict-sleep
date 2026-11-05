@@ -9,7 +9,7 @@
  * the new files and deletes the old cache on activate.
  */
 
-const CACHE_NAME = 'sleep-v1';
+const CACHE_NAME = 'sleep-v2';
 
 const PRECACHE_URLS = [
   './',
