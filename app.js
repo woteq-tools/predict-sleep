@@ -25,6 +25,12 @@ const els = {
   emptyState: document.getElementById('empty-state'),
 };
 
+/** The screens of the app and the element that holds them. */
+const VIEWS = {
+  home: 'view-home',
+  settings: 'view-settings',
+};
+
 const state = {
   wakeMs: getLastWakeMs(),
   awakeMinutes: getAwakeMinutes(),
@@ -32,6 +38,38 @@ const state = {
 
 let timerId = null;
 let lastCountdownLabel = '';
+
+/* ------------------------------------------------------------------ *
+ * Routing
+ * ------------------------------------------------------------------ */
+
+/**
+ * The screen that the current URL hash points at.
+ * @returns {string} a key of `VIEWS`
+ */
+function routeFromHash() {
+  const name = (window.location.hash || '').replace(/^#\/?/, '');
+  return Object.prototype.hasOwnProperty.call(VIEWS, name) ? name : 'home';
+}
+
+/**
+ * Show one screen and hide the others.
+ * @param {string} name a key of `VIEWS`
+ */
+function showView(name) {
+  for (const [route, id] of Object.entries(VIEWS)) {
+    document.getElementById(id).hidden = route !== name;
+  }
+
+  for (const link of document.querySelectorAll('[data-nav]')) {
+    const isActive = link.dataset.nav === name;
+    link.classList.toggle('is-active', isActive);
+    if (isActive) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  }
+
+  window.scrollTo(0, 0);
+}
 
 /* ------------------------------------------------------------------ *
  * Rendering
@@ -120,6 +158,8 @@ function recordWakeUp() {
 
 els.wakeButton.addEventListener('click', recordWakeUp);
 
+window.addEventListener('hashchange', () => showView(routeFromHash()));
+
 // Pause the timer while the app is in the background and refresh the numbers
 // when it comes back - the time zone or the clock may have changed.
 document.addEventListener('visibilitychange', () => {
@@ -131,5 +171,6 @@ document.addEventListener('visibilitychange', () => {
   startTimer();
 });
 
+showView(routeFromHash());
 render();
 startTimer();
